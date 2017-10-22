@@ -1,56 +1,43 @@
 package client;
 
-import java.sql.Timestamp;
+
+import java.io.Serializable;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class Object {
-
-	private int numSecuencia;
+public class Object implements Serializable{
 	
-	private int total;
-	
-	private long tiempoArchivo;
-	
-	private Timestamp fechaCreacion;
-	
-	public Object(int numSecuencia, int total, long tiempoArchivo, Timestamp fechaCreacion) {
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+	private String seqNumber;
+	private String timestamp;
+	public Object(int seqNumber1, Date timestamp) {
 		super();
-		this.numSecuencia = numSecuencia;
-		this.total = total;
-		this.tiempoArchivo = tiempoArchivo;
-		this.fechaCreacion = fechaCreacion;
-	}
+		this.seqNumber = "NumeroSecuencia="+Integer.toString(seqNumber1)+"";
+		
+		DateFormat df = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
+		String reportDate = df.format(timestamp);
 
-	public int getNumSecuencia() {
-		return numSecuencia;
+		this.timestamp = "marcaTiempo=" + reportDate;
 	}
-
-	public void setNumSecuencia(int numSecuencia) {
-		this.numSecuencia = numSecuencia;
+	public String getSeqNumber() {
+		return seqNumber;
 	}
-
-	public Timestamp getFechaCreacion() {
-		return fechaCreacion;
+	public void setSeqNumber(int seqNumber) {
+		this.seqNumber ="NumeroSecuencia="+seqNumber;
 	}
+	public String getTimestamp() {
+		return timestamp;
+	}
+	public void setTimestamp(Date timestamp) {
+		DateFormat df = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
+		String reportDate = df.format(timestamp);
 
-	public void setFechaCreacion(Timestamp fechaCreacion) {
-		this.fechaCreacion = fechaCreacion;
+		this.timestamp = "marcaTiempo=" + reportDate;
 	}
 	
-	public int getTotal(){
-		return total;
-	}
-	
-	public void setTotal(int total){
-		this.total = total;
-	}
-	
-	public long getTiempoArchivo(){
-		return tiempoArchivo;
-	}
-	
-	public void setTiempoArchivo(long tiempoArchivo){
-		this.tiempoArchivo = tiempoArchivo;
-	}
 	
 }
