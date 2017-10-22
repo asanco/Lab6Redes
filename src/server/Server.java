@@ -1,135 +1,117 @@
 package server;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.SocketException;
-import java.net.SocketTimeoutException;
-
-import message.MessageInfo;
-
+import java.util.ArrayList;
+import java.util.Date;
+import java.sql.Timestamp;
 
 public class Server {
-
-	private DatagramSocket socket;
-	private int port;
-	private int totalMessages = -1;
-	private int[] receivedMessages;
-	private boolean close;
-
-	private void run() throws SocketTimeoutException {
-		int				pacSize;
-		byte[]			pacData;
-		DatagramPacket 	packet;
-
-		// Receive the messages and process them by calling processMessage(...)
-		System.out.println("Ready to receive...");
+	
+	public static void main(String[] args) throws Exception {
+		System.out.println("Server Started");
+		startServer();
+	}
+	
+	public static void startServer() throws Exception{
 		
-		while(!close){
-
-		    //Receive request from client
-			pacSize = 5000;
-			pacData = new byte[5000];
-								  
-			packet = new DatagramPacket(pacData, pacSize);
-			try {
-			  socket.setSoTimeout(30000);
-			  socket.receive(packet);
-			} catch (IOException e) {
-				System.out.println("Error IO exception receiving packet.");
-				System.out.println("Could be due to timeout.");
-				System.out.println("Now closing server...");
-				System.exit(-1);
+		DatagramSocket socketServidor = new DatagramSocket(9999);
+		
+		byte[] receiveData = new byte[1024];
+		byte[] sendData = new byte[1024];
+		
+		startCommunication(socketServidor, receiveData, sendData);
+	}
+	
+	public static void startCommunication(DatagramSocket serverSocket, byte[] recieveData, byte[] sendData) throws Exception{
+		
+		while(true){
+			
+			DatagramPacket receivePackage = new DatagramPacket(recieveData, recieveData.length);
+			
+			serverSocket.receive(receivePackage);
+			String frase = new String(receivePackage.getData());
+			//System.out.println("Frase: "+frase);
+			InetAddress DireccionIP = receivePackage.getAddress();
+			int puerto = receivePackage.getPort();
+			String[] fraseN = frase.split(";");
+			String fraseNumero = fraseN[0];
+			
+			Timestamp marcaTiempoPaquete = Timestamp.valueOf(fraseN[3]);
+			//System.out.println("Marca tiempo paquete: "+marcaTiempoPaquete);
+			long miliSegundos = marcaTiempoPaquete.getTime();
+			
+			Timestamp marcaTiempoActual = new Timestamp(System.currentTimeMillis());
+			//System.out.println("Marca tiempo actual: "+marcaTiempoActual);
+			long mseg = marcaTiempoActual.getTime();
+			
+			String paraEnviar = fraseNumero+" : "+ (mseg - miliSegundos) +"ms";
+			sendData = paraEnviar.getBytes();
+			String arch = "DireccionIP: " + DireccionIP + ", Archivo: " + fraseN[2] + ", Paquete numero "+ fraseN[0] 
+					+ " de un total de " + fraseN[1] + ", Tiempo: " + (mseg - miliSegundos) + " ms";
+						
+			DatagramPacket enviarPaquete = new DatagramPacket(sendData, sendData.length,DireccionIP,puerto);
+			serverSocket.send(enviarPaquete);
+			
+			
+			String dirIP = ""+DireccionIP;
+			String[] nDirIP = dirIP.split("/");
+			String ruta = "./data/IP_"+nDirIP[1]+";Archivo_"+fraseN[2]+".txt";
+									
+			PrintWriter pw = new PrintWriter(new FileWriter(ruta, true));
+			pw.println(arch);
+			pw.close();
+			
+			String ruta2 = "./data/IP_"+nDirIP[1]+";Archivo_"+fraseN[2]+";Estadisticas.txt";
+			File file = new File(ruta2); 
+			if(file.exists()){
+				BufferedReader br = new BufferedReader(new FileReader(ruta2));
+				String nParq = br.readLine();
+				String nPaqFalt = br.readLine();
+				String nTotal = br.readLine();
+				String tProm = br.readLine();
+				
+				String[] nParq2 = nParq.split(":");
+				String[] nPaqFalt2 = nPaqFalt.split(":");
+				String[] nTotal2 = nTotal.split(":");
+				String[] tProm2 = tProm.split(":");
+				
+				br.close();
+				
+				int nPaquetes = Integer.parseInt(nParq2[1]);
+				int falt = Integer.parseInt(nPaqFalt2[1]); 
+				double promAnterior = Double.parseDouble(tProm2[1]);
+				Long nuevoT = mseg - miliSegundos;
+				double nuevoTiempo = (double) (nuevoT*1);
+				
+				PrintWriter pw2 = new PrintWriter(new FileWriter(ruta2));
+				pw2.println("Numero parquetes recibidos:"+(nPaquetes+1));
+				pw2.println("Numero parquetes faltantes:"+(falt-1));
+				pw2.println("Total Paquetes:" + nTotal2[1]);
+				pw2.println("Tiempo Promedio (ms):" + (((nPaquetes*promAnterior)+nuevoTiempo)/(nPaquetes+1)) );
+				pw2.close();
+			}
+			else{
+				PrintWriter pw2 = new PrintWriter(new FileWriter(ruta2));
+				int total = Integer.parseInt(fraseN[1]);
+				pw2.println("Numero parquetes recibidos:1");
+				pw2.println("Numero parquetes faltantes:"+(total-1));
+				pw2.println("Total Paquetes:" + fraseN[1]);
+				pw2.println("Tiempo Promedio (ms):" + (mseg - miliSegundos));
+				pw2.close();
 			}
 			
-			processMessage(packet.getData());
-			
-		}
+		}		
 		
-	}
-
-	public void processMessage(byte[] data) {
-
-		MessageInfo msg = null;
-
-		// Use the data to construct a new MessageInfo object
-	    ByteArrayInputStream byteStream = new ByteArrayInputStream(data);
-	    ObjectInputStream is;
-	    
-		try {
-			is = new ObjectInputStream(new BufferedInputStream(byteStream));
-			msg = (MessageInfo) is.readObject();	
-			is.close();
-		} catch (ClassNotFoundException e) {
-			System.out.println("Error: Could not find class match for transmitted message.");
-		} catch (IOException e) {
-			System.out.println("Error: IO exception creating ObjectInputStream.");
-		}
-	    
-		// On receipt of first message, initialize the receive buffer
-		if (receivedMessages == null) {
-			totalMessages = msg.totalMessages;
-			receivedMessages = new int[totalMessages];
-		}
-		
-		// Log receipt of the message
-		receivedMessages[msg.messageNum] = 1;
-		
-		// If this is the last expected message, then identify
-		//        any missing messages
-		if (msg.messageNum + 1 == msg.totalMessages) {
-			close = true;
-			
-			String s = "Lost packet numbers: ";
-			int count = 0;
-			for (int i = 0; i < totalMessages; i++) {
-				if (receivedMessages[i] != 1) {
-					count++;
-					s = s + " " + (i+1) + ", ";
-				}
-			}
-			
-			if (count == 0) s = s + "None";
-			
-			System.out.println("Messages processed...");
-			System.out.println("Of " + msg.totalMessages + ", " + (msg.totalMessages - count) + " received successfully...");
-			System.out.println("Of " + msg.totalMessages + ", " + count + " failed...");
-			System.out.println(s);
-			System.out.println("Test finished.");
-		}
-		
-
-	}
-
-
-	public Server(int rp) {
-		// Initialize UDP socket for receiving data
-		try {
-			port = rp;
-			socket = new DatagramSocket(port);
-		} catch (SocketException e) {
-			System.out.println("Error: Could not create socket on port " + port);
-			System.exit(-1);
-		}
-		// Make it so the server can run.
-		close = false;
-	}
-
-	public static void main(String args[]) {
-		int	recvPort;
-
-		// Get the parameters from command line
-		if (args.length < 1) {
-			System.err.println("Error: Arguments required - recv-port");
-			System.exit(-1);
-		}
-		recvPort = Integer.parseInt(args[0]);
-
-		// Initialize Server object and start it by calling run()
-		Server udpsrv = new Server(recvPort);
-		try {
-			udpsrv.run();
-		} catch (SocketTimeoutException e) {}
-	}
-
+	}	
+	
 }

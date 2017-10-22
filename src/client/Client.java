@@ -1,98 +1,59 @@
 package client;
 
-import java.io.BufferedOutputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
-import java.net.UnknownHostException;
-
-import message.MessageInfo;
+import java.sql.Timestamp;
+import java.util.ArrayList;
 
 public class Client {
 
-	private DatagramSocket sendSoc;
-
-	public static void main(String[] args) {
-		InetAddress	serverAddr = null;
-		int			recvPort;
-		int 		countTo;
-		String 		message;
-
-		// Get the parameters
-		if (args.length < 3) {
-			System.err.println("Arguments required: server name/IP, recv port, message count");
-			System.exit(-1);
-		}
-
-		try {
-			serverAddr = InetAddress.getByName(args[0]);
-		} catch (UnknownHostException e) {
-			System.out.println("Bad server address in UDPClient, " + args[0] + " caused an unknown host exception " + e);
-			System.exit(-1);
-		}
-		recvPort = Integer.parseInt(args[1]);
-		countTo = Integer.parseInt(args[2]);
-
-
-		// TO-DO: Construct UDP client class and try to send messages
-		System.out.println("Constructing udp client");
-		Client client = new Client();
-		System.out.println("Sending messages");
-		client.testLoop(serverAddr, recvPort, countTo);
-	}
-
-	public Client() {
-		// TO-DO: Initialise the UDP socket for sending data
-		try {
-			sendSoc = new DatagramSocket();
-		} catch (SocketException e) {
-			System.out.println("Error creating socket for sending data.");
+	private ArrayList<Object> packages;	
+	
+	public Client(String dir, String puerto, int cant) throws Exception{
+		
+		packages = new ArrayList<Object>();
+		Timestamp marcaTiempoActual = new Timestamp(System.currentTimeMillis());
+		long tiempoArchivo = marcaTiempoActual.getTime();
+		
+		for (int i = 1; i <= cant; i++) {
+			Object actual = new Object(i, cant, tiempoArchivo, new Timestamp(System.currentTimeMillis()));
+			packages.add(actual);
+			System.out.println("En el constructor: "+ i +" "+actual.getFechaCreacion());
 		}
 		
-
+		DatagramSocket socketCliente = new DatagramSocket();		
+		InetAddress DireccionIP = InetAddress.getByName(dir);		
+		byte[] enviarDatos = new byte[1024];
+		byte[] recibirDatos = new byte[1024];
+		
+		for (int i = 0; i < this.darPaquetes().size(); i++) {
+			
+			Object actual = this.darPaquetes().get(i);
+			int num = actual.getNumSecuencia();
+			int tot = actual.getTotal();
+			long tiempoArc = actual.getTiempoArchivo();
+			Timestamp tim = actual.getFechaCreacion();
+			
+			String frase = num + ";"+ tot + ";" + tiempoArc + ";"+tim;			
+			enviarDatos = frase.getBytes();			
+			int port = Integer.parseInt(puerto);		
+			DatagramPacket enviarPaquete = new DatagramPacket(enviarDatos, enviarDatos.length, DireccionIP, port);			
+			socketCliente.send(enviarPaquete);
+			
+			DatagramPacket recibirPaquete = new DatagramPacket(recibirDatos, recibirDatos.length);	
+			socketCliente.receive(recibirPaquete);			
+			String fraseModificada = new String(recibirPaquete.getData());			
+			System.out.println("DEL SERVIDOR: " + fraseModificada);
+		}	
+		socketCliente.close();
+	}
+	
+	private ArrayList<Object> darPaquetes(){
+		return packages;
 	}
 
-	private void testLoop(InetAddress serverAddr, int recvPort, int countTo) {
-		MessageInfo m;
-		ByteArrayOutputStream byteStream;
-		ObjectOutputStream os;
-		// TO-DO: Send the messages to the server
-		for(int i = 0; i < countTo; i++) {
-			m = new MessageInfo(countTo,i);
-			
-			byteStream = new ByteArrayOutputStream(5000);
-			try {
-				os = new ObjectOutputStream(new BufferedOutputStream(byteStream));
-				os.flush();
-				os.writeObject(m);
-				os.flush();
-			} catch (IOException e) {
-				System.out.println("Error serializing object for transmition.");
-				System.exit(-1);
-			}
-			
-			//retrieves byte array
-			byte[] sendBuf = byteStream.toByteArray();    
-			send(sendBuf, serverAddr, recvPort);
-			
-			
-		}
-	}
-
-	private void send(byte[] data, InetAddress destAddr, int destPort) {
-		DatagramPacket		pkt;
-
-		// TO-DO: build the datagram packet and send it to the server
-		pkt = new DatagramPacket(data, data.length, destAddr, destPort);
-		try {
-			sendSoc.send(pkt);
-		} catch (IOException e) {
-			System.out.println("Error transmitting packet over network.");
-			System.exit(-1);
-		}
-	}
 }
